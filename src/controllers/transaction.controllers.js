@@ -1,7 +1,6 @@
 import {nanoid} from "nanoid";
-import dayjs from "dayjs"
-import { db } from "../database/database.connection.js"
-import { ObjectId } from "mongodb"
+import { db } from "../database/database.connection.js";
+
 model.id = nanoid()
 //alterar
 export async function createShorten(req, res) {
@@ -9,8 +8,7 @@ export async function createShorten(req, res) {
     const { userId } = res.locals.session;
 
     try {
-        const transaction = { value: Number(value), description, type, userId, date: dayjs().valueOf() }
-        await db.collection("transactions").insertOne(transaction)
+        
         res.sendStatus(201)
     } catch (err) {
         res.status(500).send(err.message)
