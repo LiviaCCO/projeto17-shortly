@@ -5,8 +5,8 @@ import { v4 as uuid } from "uuid";
 export async function signUp(req, res) {
     const { name, email, password,  confirmPassword } = req.body;
     try {
-        const user = await await db.query(`SELECT * FROM users WHERE email=$1;`, [email]);
-        if (user) return res.status(409).send("E-mail já cadastrado!");
+        const user = await db.query(`SELECT * FROM users WHERE email=$1;`, [email]);
+        if (user.rows) return res.status(409).send("E-mail já cadastrado!");
         if (password!==confirmPassword) return res.status(422).send("As senhas não são iguais!");
         //cripto senha
         const hash = bcrypt.hashSync(password, 10);
