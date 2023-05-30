@@ -1,20 +1,22 @@
 import {nanoid} from "nanoid";
 import { db } from "../database/database.connection.js";
+import { query } from "express";
 
-model.id = nanoid()
-//alterar
+//verificar
 export async function createShorten(req, res) {
     const { url } = req.body;
     const { userId } = res.locals.session;
-
+    const shortUrl = nanoid.url();
     try {
+        await db.query(`INSERT INTO urls ("shortUrl", url, views, "userId") VALUES ($1, $2, $3, $4);`, [shortUrl, url, 0, userId]);
+        const short = await db.query(`SELECT * FROM urls WHERE shortUrl=$1;`, [shortUrl]);
         
-        res.sendStatus(201)
+        const resp = {id: short.rows.id, shortUrl: short.rows.shortUrl};
+        res.status(201).send(resp);
     } catch (err) {
-        res.status(500).send(err.message)
+        res.status(500).send(err.message);
     }
 }
-
 export async function getId(req, res) {
     const { id } = req.params;
     try {
@@ -28,21 +30,20 @@ export async function getId(req, res) {
         res.status(500).send(err.message);
     }
 }
-
 export async function getUrl(req, res) {
     const { url } = req.params;
     try {
-        const isUrl = await db.query(`SELECT * FROM urls WHERE shortUrl=$1;`, [url]);
+        const isUrl = await db.query(`SELECT * FROM urls WHERE "shortUrl"=$1;`, [url]);
         if (!isUrl.rows) return res.sendStatus(404);
         // somar mais um view
         const views = isUrl.rows.views;
-        await db.query(`UPDATE urls SET views=$1 WHERE shortUrl=$2`, [(views+1), url]);
+        await db.query(`UPDATE urls SET views=$1 WHERE "shortUrl"=$2`, [(views+1), url]);
         res.sendStatus(200);
     } catch (err) {
         res.status(500).send(err.message)
     }
 }
-//rever
+//verificar
 export async function deleteId(req, res) {
     const { userId } = res.locals.session;
     const auth = req.header('Authorization');
@@ -65,18 +66,23 @@ export async function getUser(req, res) {
     const auth = req.header('Authorization');
     try {
         const user = await db.query(`SELECT * FROM users WHERE token=$1;`, [auth]);
-        const numViews = await db.query(`
-        SELECT SUM(views), "idUser" 
-        FROM urls GROUP BY........ `)
-        const userSummary = user.rows.map(d => ({
-            id: d.id,
-            name: d.name,
-            visitCount: .....,
-            shortenedUrls: [{id, shortUrl, url, visitCount}]
-
-        }))
-
-        res.status(200).send(userSummary);
+        const urls = await db.query(`SELECT * FROM urls WHERE userId=$1;`, [userId]);
+        const sumVisit = await db.query(`SELECT SUM (views) AS "visitCount" FROM urls WHERE "userId"=$1;`, [userId])
+        const urlTable = urls.rows.map(d => (
+            {
+                id: d.id,
+                shortUrl: d.shortUrl,
+                url: d.url,
+                visitCount: d.visitCount
+            }
+        ))
+        const resp = {
+            id: user.rows.id,
+            name: user.rows.name,
+            visitCount: sumVisit.rows[0],
+            shortenedUrls: urlTable
+        }
+        res.status(200).send(resp);
     } catch (err) {
         res.status(500).send(err.message);
     }
@@ -85,7 +91,22 @@ export async function getUser(req, res) {
 export async function getRanking(req, res) {
     
     try {
-        const summary = await.......
+        const allUser = await db.query(`
+            SELECT SUM (urls.views) AS "visitCount", COUNT("userId") AS "linksCount", users.id, users.name
+                FROM urls
+                JOIN users ON urls."userId" = users.id
+                GROUP BY users.id
+                ORDER BY "linksCount"
+                LIMIT 10;
+        `);
+        const summary = allUser.rows.map(d => {
+            return{
+                id: d.id,
+                name: d.name,
+                linksCount: d.linksCount,
+                visitCount: d.visitCount
+            }
+        })
         res.status(200).send(summary);
     } catch (err) {
         res.status(500).send(err.message)
