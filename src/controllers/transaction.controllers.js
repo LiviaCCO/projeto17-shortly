@@ -1,7 +1,6 @@
 import {nanoid} from "nanoid";
 import { db } from "../database/database.connection.js";
 
-//verificar
 export async function createShorten(req, res) {
     const { url } = req.body;
     const { userId } = res.locals;
@@ -22,7 +21,7 @@ export async function getId(req, res) {
     const { id } = req.params;
     try {
         const isId = await db.query(`SELECT * FROM urls WHERE id=$1;`, [id]);
-        if (!isId.rows) return res.status(404).send('Url encurtada não encontrada!');
+        if (!isId.rows[0]) return res.status(404).send('Url encurtada não encontrada!');
         const idData = isId.rows.map(d => ({
                 id: d.id, shortUrl: d.shortUrl, url: d.url
         }));
@@ -32,63 +31,59 @@ export async function getId(req, res) {
     }
 }
 export async function getUrl(req, res) {
-    const { url } = req.params;
+    const { shortUrl } = req.params;
     try {
-        const isUrl = await db.query(`SELECT * FROM urls WHERE "shortUrl"=$1;`, [url]);
-        if (!isUrl.rows) return res.sendStatus(404);
+        const isUrl = await db.query(`SELECT * FROM urls WHERE "shortUrl"=$1;`, [shortUrl]);
+        if (!isUrl.rows[0]) return res.sendStatus(404);
         // somar mais um view
-        const views = isUrl.rows.views;
-        await db.query(`UPDATE urls SET views=$1 WHERE "shortUrl"=$2`, [(views+1), url]);
+        const views = isUrl.rows[0].views;
+        await db.query(`UPDATE urls SET views=$1 WHERE "shortUrl"=$2`, [(views+1), shortUrl]);
         res.sendStatus(200);
     } catch (err) {
         res.status(500).send(err.message)
     }
 }
-//verificar
 export async function deleteId(req, res) {
     const { userId } = res.locals;
-   // const auth = req.header('Authorization');
     const { id } = req.params;
-    if (!id) return res.sendStatus(404);
+
     try {
-        if (!auth) return res.sendStatus(401);
-        const user = await db.query(`SELECT * FROM users WHERE token=$1;`, [userId]);
+        const user = await db.query(`SELECT * FROM users WHERE id=$1;`, [userId]);
         const url = await db.query(`SELECT * FROM urls WHERE id=$1;`, [id]);
-        if(user.rows.id !== url.rows.idUser) return res.sendStatus(401);
+        if (!url.rows[0]) return res.sendStatus(404);
+        if(user.rows[0].id !== url.rows[0].userId) return res.sendStatus(401);
         await db.query(`DELETE FROM urls WHERE id=$1;`, [id]);
         res.sendStatus(204)
     } catch (err) {
         res.status(500).send(err.message)
     }
 }
-
 export async function getUser(req, res) {
     const { userId } = res.locals;
-    //const auth = req.header('Authorization');
     try {
-        const user = await db.query(`SELECT * FROM users WHERE token=$1;`, [userId]);
-        const urls = await db.query(`SELECT * FROM urls WHERE userId=$1;`, [userId]);
+        const user = await db.query(`SELECT * FROM users WHERE id=$1;`, [userId]);
+        const urls = await db.query(`SELECT * FROM urls WHERE "userId"=$1;`, [userId]);
         const sumVisit = await db.query(`SELECT SUM (views) AS "visitCount" FROM urls WHERE "userId"=$1;`, [userId])
-        const urlTable = urls.rows.map(d => (
-            {
+        console.log(urls.rows)
+        const urlTable = urls.rows.map(d => {
+            return {
                 id: d.id,
                 shortUrl: d.shortUrl,
                 url: d.url,
-                visitCount: d.visitCount
+                visitCount: d.views
             }
-        ))
-        const resp = {
-            id: user.rows.id,
-            name: user.rows.name,
-            visitCount: sumVisit.rows[0],
+        });
+        const resp = ({
+            id: user.rows[0].id,
+            name: user.rows[0].name,
+            visitCount: sumVisit.rows[0].visitCount,
             shortenedUrls: urlTable
-        }
+        })
         res.status(200).send(resp);
     } catch (err) {
         res.status(500).send(err.message);
     }
 }
-
 export async function getRanking(req, res) {
     
     try {
@@ -97,7 +92,7 @@ export async function getRanking(req, res) {
                 FROM urls
                 JOIN users ON urls."userId" = users.id
                 GROUP BY users.id
-                ORDER BY "linksCount"
+                ORDER BY "linksCount" DESC
                 LIMIT 10;
         `);
         const summary = allUser.rows.map(d => {
