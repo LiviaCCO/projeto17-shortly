@@ -7,8 +7,9 @@ export async function authValidation(req, res, next) {
 
     try {
         const session = await db.query(`SELECT * FROM users WHERE token=$1;`, [token]);
-        if (!session.rows) return res.sendStatus(401)
-        res.locals.session = session
+        if (!session.rows[0]) return res.sendStatus(401);
+        res.locals.userId = session.rows[0].id;
+        //res.locals.session = session
         next()
     } catch (err) {
         res.status(500).send(err.message)

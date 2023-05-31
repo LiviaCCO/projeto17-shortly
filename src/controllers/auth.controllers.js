@@ -6,11 +6,11 @@ export async function signUp(req, res) {
     const { name, email, password,  confirmPassword } = req.body;
     try {
         const user = await db.query(`SELECT * FROM users WHERE email=$1;`, [email]);
-        if (user.rows) return res.status(409).send("E-mail já cadastrado!");
+        if (user.rows[0]) return res.status(409).send("E-mail já cadastrado!");
         if (password!==confirmPassword) return res.status(422).send("As senhas não são iguais!");
         //cripto senha
         const hash = bcrypt.hashSync(password, 10);
-        await db.query(`INSERT INTO users (name, email, password) VALUES $1, $2, $3;`, [name, email, password]);
+        await db.query(`INSERT INTO users (name, email, password) VALUES ($1, $2, $3);`, [name, email, hash]);
         res.sendStatus(201);
     } catch (err) {
         res.status(500).send(err.message)
@@ -21,9 +21,9 @@ export async function login(req, res) {
     const { email, password } = req.body;
     try {
         const user = await db.query(`SELECT * FROM users WHERE email=$1;`, [email]);
-        if (!user) return res.status(401).send("E-mail ainda não cadastrado!");
+        if (!user.rows[0]) return res.status(401).send("E-mail ainda não cadastrado!");
         // verif senha
-        const passwordCorrect = bcrypt.compareSync(password, user.password);
+        const passwordCorrect = bcrypt.compareSync(password, user.rows[0].password);
         if (!passwordCorrect) return res.status(401).send("A senha está incorreta!");
         //token
         const token = uuid();
@@ -34,12 +34,3 @@ export async function login(req, res) {
     }
 }
 
-export async function logout(req, res) {
-    const { token } = res.locals.session;
-    try {
-        await db.query(`UPDATE users SET token=$1 WHERE token=$2;`, [null, token]);
-        res.sendStatus(200);
-    } catch (err) {
-        res.status(500).send(err.message);
-    }
-}

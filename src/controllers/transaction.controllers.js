@@ -1,17 +1,18 @@
 import {nanoid} from "nanoid";
 import { db } from "../database/database.connection.js";
-import { query } from "express";
 
 //verificar
 export async function createShorten(req, res) {
     const { url } = req.body;
-    const { userId } = res.locals.session;
-    const shortUrl = nanoid.url();
+    const { userId } = res.locals;
+    
+    const shortUrl = nanoid();
+
     try {
-        await db.query(`INSERT INTO urls ("shortUrl", url, views, "userId") VALUES ($1, $2, $3, $4);`, [shortUrl, url, 0, userId]);
-        const short = await db.query(`SELECT * FROM urls WHERE shortUrl=$1;`, [shortUrl]);
+        await db.query(`INSERT INTO urls ("shortUrl", url, views, "userId") VALUES ($1, $2, $3, $4);`, [shortUrl, url, '0', userId]);
+        const short = await db.query(`SELECT * FROM urls WHERE "shortUrl"=$1;`, [shortUrl]);
+        const resp = {id: short.rows[0].id, shortUrl: short.rows[0].shortUrl};
         
-        const resp = {id: short.rows.id, shortUrl: short.rows.shortUrl};
         res.status(201).send(resp);
     } catch (err) {
         res.status(500).send(err.message);
@@ -45,13 +46,13 @@ export async function getUrl(req, res) {
 }
 //verificar
 export async function deleteId(req, res) {
-    const { userId } = res.locals.session;
-    const auth = req.header('Authorization');
+    const { userId } = res.locals;
+   // const auth = req.header('Authorization');
     const { id } = req.params;
     if (!id) return res.sendStatus(404);
     try {
         if (!auth) return res.sendStatus(401);
-        const user = await db.query(`SELECT * FROM users WHERE token=$1;`, [auth]);
+        const user = await db.query(`SELECT * FROM users WHERE token=$1;`, [userId]);
         const url = await db.query(`SELECT * FROM urls WHERE id=$1;`, [id]);
         if(user.rows.id !== url.rows.idUser) return res.sendStatus(401);
         await db.query(`DELETE FROM urls WHERE id=$1;`, [id]);
@@ -62,10 +63,10 @@ export async function deleteId(req, res) {
 }
 
 export async function getUser(req, res) {
-    const { userId } = res.locals.session;
-    const auth = req.header('Authorization');
+    const { userId } = res.locals;
+    //const auth = req.header('Authorization');
     try {
-        const user = await db.query(`SELECT * FROM users WHERE token=$1;`, [auth]);
+        const user = await db.query(`SELECT * FROM users WHERE token=$1;`, [userId]);
         const urls = await db.query(`SELECT * FROM urls WHERE userId=$1;`, [userId]);
         const sumVisit = await db.query(`SELECT SUM (views) AS "visitCount" FROM urls WHERE "userId"=$1;`, [userId])
         const urlTable = urls.rows.map(d => (
