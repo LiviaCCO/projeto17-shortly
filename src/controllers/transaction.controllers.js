@@ -5,7 +5,7 @@ export async function createShorten(req, res) {
     const { url } = req.body;
     const { userId } = res.locals;
     
-    const shortUrl = nanoid();
+    const shortUrl = nanoid(6);
 
     try {
         await db.query(`INSERT INTO urls ("shortUrl", url, views, "userId") VALUES ($1, $2, $3, $4);`, [shortUrl, url, '0', userId]);
@@ -89,8 +89,8 @@ export async function getRanking(req, res) {
     try {
         const allUser = await db.query(`
             SELECT SUM (urls.views) AS "visitCount", COUNT("userId") AS "linksCount", users.id, users.name
-                FROM urls
-                JOIN users ON urls."userId" = users.id
+                FROM users
+                LEFT JOIN urls ON urls."userId" = users.id
                 GROUP BY users.id
                 ORDER BY "linksCount" DESC
                 LIMIT 10;
